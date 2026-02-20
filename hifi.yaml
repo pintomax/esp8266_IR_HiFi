@@ -1,0 +1,471 @@
+##############################
+# Compiled on Ubunu 24 LTS
+# esphome Version: 2026.1.5
+##############################
+
+##############################
+#
+# RAM:   [====      ]  38.7% (used 31672 bytes from 81920 bytes)
+# Flash: [=====     ]  46.1% (used 481367 bytes from 1044464 bytes)
+#
+#############################
+
+esphome:
+  name: hifi
+  comment: ESP8266 with IR to Denon AV system, subwoofer relay, LED strip and LED VU-meter control
+
+  on_boot:
+    if:
+      condition:
+         - binary_sensor.is_on: subwoofer_relay_sensor
+      then:
+        - switch.template.publish:
+            id: denon_power_switch
+            state: ON
+        - globals.set:
+             id: hifi_status
+             value: '1'
+        - globals.set:
+             id: hifi_power_status 
+             value: '1'
+      else:
+        - switch.template.publish:
+             id: denon_power_switch
+             state: OFF
+
+globals:
+   - id: hifi_status
+     type: int
+     restore_value: no
+     initial_value: '0'
+
+   - id: hifi_power_status
+     type: int
+     restore_value: no
+     initial_value: '0'
+
+   - id: metergain
+     type: float
+     restore_value: no
+     initial_value: '1'
+
+   - id: meteroffset
+     type: int
+     restore_value: no
+     initial_value: '-518'
+
+   - id: meteradjust
+     type: int
+     restore_value: no
+     initial_value: '-4'
+
+   - id: meterscale
+     type: int
+     restore_value: no
+     initial_value: '200'
+
+esp8266:
+  board: nodemcu
+
+# Enable logging
+logger:
+  level : WARN
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: SOMEKEY
+
+ota:
+  platform: esphome
+  #password: ""
+
+wifi:
+  ssid: "WIFI_NET"
+  password: "WIFI_PASS"
+  min_auth_mode: WPA
+
+remote_transmitter:
+  pin: D5
+  # Infrared remotes use a 50% carrier signal
+  carrier_duty_percent: 50%    
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: D7
+      inverted: true
+      mode:
+        input: true
+        #pullup: true
+    filters:
+      - delayed_on_off: 100ms
+    name: "Subwoofer_relay"
+    id: "subwoofer_relay_sensor"
+    device_class: plug
+
+switch:
+  - platform: gpio
+    name: "Subwoofer"
+    pin: D6
+    id: "subwoofer_eltak"
+    internal: true
+    restore_mode: ALWAYS_OFF
+
+  - platform: template
+    name: "Subwoofer Template Switch"
+    id: subwoofer_switch
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      if:
+        condition:
+          and:
+           - binary_sensor.is_on: subwoofer_relay_sensor
+           - switch.is_on: denon_power_switch
+        then:
+          - switch.turn_on: subwoofer_eltak
+          - switch.template.publish:
+              id: subwoofer_switch
+              state: ON
+        else:
+          - switch.turn_off: subwoofer_eltak
+          - switch.template.publish:
+               id: subwoofer_switch
+               state: OFF
+    turn_off_action:
+          - switch.turn_off: subwoofer_eltak
+          - switch.template.publish:
+              id: subwoofer_switch
+              state: OFF
+
+  - platform: template
+    name: "Denon HiFi Power"
+    id: "denon_power_switch"
+    restore_mode: DISABLED
+    optimistic: false
+    turn_on_action:
+      - switch.template.publish:
+          id: "denon_power_switch"
+          state: ON
+      - globals.set:
+          id: hifi_power_status
+          value: '1'
+      - remote_transmitter.transmit_raw:
+          code: [372, -706,  344, -1758,  344, -706,  344, -706,  344, -706,  344, -1758,  344, -706,  344, -706,  344, -706,  344, -706,  344, -1758,  344, -1758,  344, -1758,  344, -706,  344, -706,  344, -45840,  370, -708,  344, -1758,  344, -706,  346, -706,  344, -706,  344, -706,  344, -1758,  344, -1758,  344, -1758,  344, -1758,  344, -706,  344, -706,  344, -706,  344, -1758,  344, -1760,  344, -43738,  368, -706,  344, -1758,  344, -708,  344, -706,  344, -708,  344, -1760,  344, -708,  344, -706,  344, -708,  344, -708,  344, -1758,  344, -1758,  344, -1758,  344, -706,  344, -706,  344]
+          carrier_frequency: 38kHz
+    turn_off_action:
+      - switch.template.publish:
+          id: "denon_power_switch"
+          state: OFF
+      - remote_transmitter.transmit_raw:
+          code: [370, -708,  344, -1760,  342, -708,  344, -706,  344, -706,  344, -706,  344, -1758,  344, -708,  344, -708,  344, -706,  344, -1758,  344, -1758,  344, -1758,  344, -708,  344, -708,  344, -45840,  370, -706,  344, -1760,  344, -708,  344, -706,  344, -706,  344, -1760,  344, -706,  344, -1758,  346, -1758,  344, -1758,  344, -706,  344, -706,  344, -706,  344, -1760,  344, -1760,  344, -43736,  368, -706,  344, -1758,  344, -706,  344, -708,  344, -708,  344, -706,  344, -1736,  368, -706,  344, -708,  344, -708,  344, -1760,  344, -1760,  344, -1760,  344, -708,  344, -708,  344]
+          carrier_frequency: 38kHz
+      # Turn off sub woofer
+      - switch.turn_off: subwoofer_switch
+      - globals.set:
+          id: hifi_power_status
+          value: '0'
+
+button:
+  - platform: template
+    name: "Denon HiFi Volume Up"
+    icon: "mdi:volume-plus"
+    id: "denon_vol_plus"
+    on_press:
+      - remote_transmitter.transmit_raw:
+          code: [316, -734,  316, -1786,  316, -734,  316, -734,  316, -734,  316, -1788,  316, -734,  316, -734,  316, -734,  316, -1786,  316, -1788,  316, -1786,  316, -1788,  316, -736,  316, -734,  316, -44840,  318, -734,  316, -1786,  316, -734,  316, -734,  318, -734,  316, -734,  316, -1786,  316, -1786,  316, -1786,  316, -734,  318, -734,  316, -734,  316, -734,  316, -1786,  316, -1786,  316, -44840,  318, -734,  318, -1786,  316, -734,  316, -734,  316, -734,  316, -1786,  316, -734,  318, -734,  316, -734,  316, -1786,  316, -1788,  316, -1786,  316, -1786,  316, -734,  316, -734,  318] 
+          carrier_frequency: 38kHz
+
+  - platform: template
+    name: "Denon HiFi Volume Down"
+    icon: "mdi:volume-minus"
+    id: "denon_vol_less"
+    on_press:
+      - remote_transmitter.transmit_raw:
+          code: [316, -736,  316, -1788,  314, -738,  314, -736,  314, -736,  314, -736,  314, -1788,  314, -736,  314, -736,  314, -1788,  314, -1790,  314, -1790,  314, -1788,  314, -738,  314, -738,  314, -44844,  314, -736,  314, -1790,  314, -738,  314, -736,  314, -736,  314, -1788,  314, -736,  316, -1788,  314, -1788,  316, -736,  314, -736,  314, -736,  316, -736,  316, -1788,  316, -1788,  316, -44840,  318, -734,  316, -1786,  316, -734,  316, -734,  316, -734,  316, -734,  318, -1786,  318, -734,  318, -734,  318, -1786,  316, -1786,  316, -1786,  316, -1786,  316, -736,  316, -734,  318]
+          carrier_frequency: 38kHz
+
+select:
+  - platform: template
+    name: "Denon HiFi Source"
+    id: "denon_source"
+    optimistic: true
+    options:
+     - "DVD"
+     - "Radio"
+     - "CD"
+     - "TV"
+    initial_option: "CD"
+    on_value:
+      then:
+        - if:
+            condition:
+              - lambda: |-
+                  return strcmp(id(denon_source).current_option().c_str(), "Radio") == 0;
+            then:
+              - remote_transmitter.transmit_raw:
+                  code: [346, -706,  346, -1758,  344, -706,  344, -706,  344, -706,  346, -1758,  346, -704,  346, -1758,  346, -706,  346, -706,  346, -706,  344, -1758,  344, -1758,  344, -706,  346, -704,  346, -45838,  372, -706,  344, -1758,  346, -706,  346, -706,  344, -706,  346, -706,  346, -1758,  346, -706,  344, -1758,  346, -1758,  346, -1758,  346, -706,  346, -706,  344, -1758,  344, -1758,  344, -43760,  346, -706,  344, -1758,  346, -706,  346, -706,  346, -706,  346, -1758,  346, -706,  346, -1758,  346, -706,  346, -706,  344, -706,  344, -1758,  346, -1756,  346, -706,  344, -706,  344]
+                  carrier_frequency: 38kHz
+        - if:
+            condition:
+              - lambda: |-
+                  return strcmp(id(denon_source).current_option().c_str(), "TV") == 0;
+            then:
+              - remote_transmitter.transmit_raw:
+                  code: [344, -708,  344, -1760,  344, -708,  344, -706,  344, -706,  344, -1758,  344, -708,  342, -708,  344, -1732,  370, -706,  344, -706,  344, -1758,  344, -1758,  344, -706,  344, -706,  344, -45864,  344, -706,  344, -1758,  344, -706,  344, -706,  344, -706,  344, -706,  344, -1758,  346, -1758,  346, -706,  346, -1758,  344, -1758,  344, -706,  344, -706,  344, -1758,  346, -1758,  346, -43736,  370, -706,  344, -1758,  346, -706,  346, -706,  346, -706,  344, -1758,  346, -706,  344, -706,  344, -1758,  346, -706,  346, -706,  346, -1758,  346, -1756,  346, -706,  344, -706,  344]
+                  carrier_frequency: 38kHz
+        - if:
+            condition:
+              - lambda: |-
+                  return strcmp(id(denon_source).current_option().c_str(), "CD") == 0;
+            then:
+              - remote_transmitter.transmit_raw:
+                  code: [314, -738,  314, -1790,  314, -738,  314, -738,  314, -736,  314, -736,  314, -736,  314, -1788,  314, -736,  314, -736,  314, -736,  316, -1788,  314, -1790,  314, -738,  314, -736,  316, -46946,  314, -738,  314, -1788,  314, -736,  314, -736,  314, -736,  314, -1790,  314, -1788,  314, -738,  314, -1788,  316, -1788,  314, -1788,  314, -736,  314, -736,  316, -1788,  314, -1788,  314, -42738,  314, -736,  314, -1788,  314, -736,  314, -738,  314, -736,  314, -736,  314, -736,  314, -1788,  314, -736,  316, -736,  314, -736,  314, -1788,  314, -1788,  314, -736,  314, -736,  314]
+                  carrier_frequency: 38kHz
+        - if:
+            condition:
+              - lambda: |-
+                  return strcmp(id(denon_source).current_option().c_str(), "DVD") == 0;
+            then:
+              - remote_transmitter.transmit_raw:
+                  code: [316, -734,  316, -1788,  316, -736,  316, -734,  316, -734,  316, -1788,  314, -1788,  316, -734,  316, -734,  316, -736,  316, -1788,  314, -1788,  316, -1788,  316, -734,  316, -736,  316, -44840,  316, -736,  316, -1788,  316, -736,  316, -734,  316, -736,  316, -736,  316, -736,  316, -1786,  316, -1788,  314, -1788,  316, -734,  316, -736,  316, -736,  316, -1788,  314, -1788,  316, -44816,  340, -734,  344, -1760,  344, -706,  344, -706,  346, -706,  346, -1758,  344, -1758,  346, -706,  346, -706,  344, -708,  344, -1758,  344, -1758,  344, -1758,  344, -706,  344, -706,  346]
+                  carrier_frequency: 38kHz
+
+light:
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812
+    pin: D8
+    num_leds: 9
+    restore_mode: ALWAYS_OFF
+    name: "HiFi led strip"
+    id: "hifi_strip"
+    effects:
+      - addressable_color_wipe:
+          name: Color Wipe Effect With Custom Values
+          colors:
+            - red: 100%
+              green: 80%
+              blue: 60%
+              num_leds: 8
+            - red: 0%
+              green: 0%
+              blue: 100%
+              num_leds: 8
+          add_led_interval: 100ms
+          reverse: false
+      - strobe:
+          name: Strobe Effect With Custom Values
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 90%
+              blue: 0%
+              duration: 500ms
+            - state: false
+              duration: 250ms
+            - state: true
+              brightness: 100%
+              red: 0%
+              green: 100%
+              blue: 0%
+              duration: 500ms
+      - flicker:
+          name: Flicker Effect With Custom Values
+          alpha: 95%
+          intensity: 1.5%
+      - addressable_rainbow:
+          name: Rainbow Effect With Custom Values
+          speed: 10
+          width: 50
+      - addressable_fireworks:
+          name: Fireworks Effect With Custom Values
+          update_interval: 32ms
+          spark_probability: 10%
+          use_random_color: false
+          fade_out_rate: 120
+      - random:
+          name: "Slow Random Effect"
+          transition_length: 25s
+          update_interval: 30s
+      - random:
+          name: "Fast Random Effect"
+          transition_length: 4s
+          update_interval: 5s
+      - pulse:
+          name: "Fast Pulse"
+          transition_length: 0.5s
+          update_interval: 0.5s
+      - pulse:
+          name: "Slow Pulse"
+          # transition_length: 1s    # defaults to 1s
+          update_interval: 2s
+      - random:
+          name: Random Effect With Custom Values
+          transition_length: 5s
+          update_interval: 7s
+    on_turn_on:
+      - light.turn_on:
+          id: hifi_strip
+          brightness: 80%
+          red: 0%
+          green: 100%
+          blue: 0%
+          #- homeassistant.service:
+          #service: notify.lg_webos_smart_tv
+          #data:
+          #   message: "LED strip is ON"
+          #on_turn_off:
+          #- homeassistant.service:
+          #service: notify.lg_webos_smart_tv
+          #data:
+          #message: "LED strip is OFF"
+          effect: "Slow Random Effect"
+
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812
+    pin: D3
+    num_leds: 12
+    restore_mode: ALWAYS_OFF
+    name: "hifi_vu_meter"
+    id: "hifi_vu_meter"
+    on_turn_on:
+      then:
+        #- light.turn_on:
+        #    id: "office_led_meter"
+        #    brightness: 70%
+        #    transition_length: 10ms
+        - lambda: |-
+             auto call = id(hifi_vu_meter).turn_on();
+             //call.set_transition_length(10);
+             call.set_brightness(0.7);
+             call.set_effect("meter_effect");
+             call.perform();
+
+    effects:
+      - addressable_lambda:
+          name: "meter_effect"
+          update_interval: 20ms
+          lambda: |-
+             static int peak = 0;
+             auto v = id(hi_fi_sound_level).state + id(meteradjust);
+             auto interval = v / (it.size() -1);
+             auto t_val = id(meterscale) / (it.size() -1);
+             for (int i = 0; i < (it.size()-1); i++) {
+                 auto val = 0;
+                 if (v > (t_val * i+1)) {
+                  val = 255;
+                 } else {
+                   val = ((v - (t_val * i))/(t_val * 1.0)) * 255;
+                   if (val < 64) {
+                     val = 0;
+                   }
+                 }
+
+                 // Color(R, G, B)
+                 if (i < 7) {
+                     // BLUE
+                     it[i] = Color(0, 0, val);
+                 } else if (i == 7) {
+                     it[i] = Color(val, 0, val);
+                 } else if (i >=8 && i < 9) {
+                     it[i] = Color(val*0.7, val*0.2, val*0.5);
+                 } else {
+                     // RED
+                     it[i] = Color(val * 0.8, 0, 0);
+                 }
+             }
+
+             // Set peak LED on VU meter strip
+             if (v >= id(meterscale)) {
+                 //  Red: 80%, Green: 64%, Blue: 100%
+                 it[it.size()-1] = Color(255 * 0.8, 255 * 0.64, 255);
+             }
+             if (peak > 20) {
+                 it[it.size()-1] = Color::BLACK;
+                 peak = 0;
+             }
+             peak++;
+
+sensor:
+    # To measure the VCC voltage, set pin: to VCC and make sure nothing is connected to the A0 pin.
+  - platform: adc
+    pin: A0
+    name: "hifi_sound_level"
+    id: "hi_fi_sound_level"
+    internal: true
+    update_interval: 15ms
+    raw: true
+    filters:
+      - lambda: |-
+          auto i = id(hifi_vu_meter).current_values;
+          if (i.is_on() == false) {
+            return {};
+          } else {
+            return abs((x + id(meteroffset)) * id(metergain));
+          }
+
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+    update_interval: 60s
+    id: wifi_signal_db
+    internal : true
+
+  - platform: copy # Reports the WiFi signal strength in %
+    source_id: wifi_signal_db
+    name: "WiFi Signal Percent"
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: " %"
+    entity_category: "diagnostic"
+
+number:
+  - platform: template
+    name: "vu_meter_gain"
+    id: "vumetergain"
+    step: 0.1
+    min_value: 0.1
+    max_value: 2
+    initial_value: 1
+    mode: slider
+    set_action:
+      then:
+        - lambda:  id(metergain) = x;
+
+  - platform: template
+    name: "vu_meter_offset"
+    id: "vumeteroffset"
+    step: 0.5
+    min_value: -1024
+    max_value: +1024
+    initial_value: -520
+    mode: box
+    set_action:
+      then:
+        - lambda:  id(meteroffset) = x;
+
+  - platform: template
+    name: "vu_meter_adjust"
+    id: "vumeteradjust"
+    step: 0.5
+    min_value: -20
+    max_value: 20
+    initial_value: -4
+    mode: slider
+    set_action:
+      then:
+        - lambda:  id(meteradjust) = x;
+
+  - platform: template
+    name: "vu_meter_scale"
+    id: "vumeterscale"
+    step: 0.5
+    min_value: 10
+    max_value: 800
+    initial_value: 512
+    mode: slider
+    set_action:
+      then:
+        - lambda:  id(meterscale) = x;
