@@ -17,7 +17,7 @@ source venv/bin/activate
 - Relay switch uses pin D6 for activating subwoofer (220v) via relay (12V)
 - Connect neopixel RGB LED to pin D8 (9 LEDS for this setup)
 - Connect another neopixel RGB LED to pin D3 (12 LEDs) for VU-meter effect
-- Use an ol AC volage transformer (say 220 V to 12 V AC) and remove secondary windings,
+- Use an old AC volage transformer (say 220 V to 12 V AC) and remove secondary windings,
   then use primary windings connected to GND and ADC for sound level acquisition
   Use 3 or 5 turns of the loudspeaker cable (R+ or R- or L+ or L-) in the place of secondary windinga.
 
