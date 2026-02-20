@@ -11,13 +11,13 @@ python3 -m venv ./venv
 # 2 activate it
 source venv/bin/activate
 
-# 3 connect:
+# 3 connect hardware
 - Infrared LED to ESP8266 pin D5 and place it close or internally to HiFi case
 - Binary sensor to pin D7 detecting 12V to subwoofer relay box is active
 - Relay switch uses pin D6 for activating subwoofer (220v) via relay (12V)
 - Connect neopixel RGB LED to pin D8 (9 LEDS for this setup)
 - Connect another neopixel RGB LED to pin D3 (12 LEDs) for VU-meter effect
-- Use an old AC volage transformer (say 220 V to 12 V AC) and remove secondary windings,
+- Use an old AC voltage transformer (say 220 V to 12 V AC) and remove secondary windings,
   then use primary windings connected to GND and ADC for sound level acquisition
   Use 3 or 5 turns of the loudspeaker cable (R+ or R- or L+ or L-) in the place of secondary windinga.
 
